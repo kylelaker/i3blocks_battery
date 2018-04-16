@@ -1,11 +1,18 @@
+extern crate gtk;
+extern crate nix;
+mod battery;
+
 use std::env;
 
-mod battery;
+use gtk::prelude::*;
+use gtk::{ButtonsType, DialogFlags, MessageType, MessageDialog, Window};
+
+use nix::unistd::{fork, ForkResult};
 
 use battery::Battery;
 use battery::BatteryStatus;
 
-fn console_output(bat: Battery) {
+fn console_output(bat: &Battery) {
     // Icons
     let plug          = '\u{f1e6}';
     let check         = '\u{f00c}';
@@ -58,17 +65,79 @@ fn console_output(bat: Battery) {
     }
 }
 
-fn main() {
-    let battery_name = match env::var("BLOCK_INSTANCE") {
+fn show_gtk_dialog(bat: &Battery) {
+    if gtk::init().is_err() {
+        println!("Failed to initialize GTK.");
+        return;
+    }
+
+    let body_string = format!("Battery name:\t\t{}\n\
+                              Battery charge:\t\t{}\n\
+                              Charge when full:\t{}\n\
+                              Design full:\t\t\t{}\n\
+                              Cycle count:\t\t{}\n\
+                              Charging status:\t{}\n\
+                              Current now:\t\t{}\n\
+                              Current avg:\t\t{}\n\
+                              % Charged:\t\t\t{}%\n\
+                              Time remaining:\t\t{}\n\
+                              Battery health:\t\t{}%\n\
+                              % Charged (abs):\t{}%\n",
+                              bat.name, bat.charge_now, bat.charge_full,
+                              bat.charge_full_design, bat.cycle_count,
+                              bat.charge_status, bat.current_now,
+                              bat.current_avg, bat.percent_remaining(),
+                              bat.time_remaining(), bat.health(),
+                              bat.abs_percent_remaining());
+
+    MessageDialog::new(None::<&Window>,
+                       DialogFlags::empty(),
+                       MessageType::Info,
+                       ButtonsType::Ok,
+                       &body_string).run();
+    std::process::exit(0);
+}
+
+fn get_env_var(key: &str) -> Option<String> {
+    match env::var(key) {
         Ok(val) => {
             if val.is_empty() {
-                "BAT0".to_owned()
+                None
             } else {
-                val
+                Some(val)
             }
         },
-        Err(_) => "BAT0".to_owned(),
+        Err(_) => None
+    }
+}
+
+fn main() {
+    let battery_name = match get_env_var("BLOCK_INSTANCE") {
+        Some(val) => val,
+        None => "BAT0".to_owned(),
     };
+
     let bat = Battery::initialize(&battery_name);
-    console_output(bat);
+
+    let button: u32 = match get_env_var("BLOCK_BUTTON") {
+        Some(val) => val.trim().parse().unwrap(),
+        None => 0
+    };
+
+    /*
+     * For the purposes of i3blocks, 3 corresponds to a right click. When
+     * that happens, fork() and then show a dialog. If we don't fork(), then
+     * the dialog prevents this process from exiting and the block doesn't
+     * update. The printing to the console is done in the parent thread.
+     * It is the responsibility of the child process to exit after displaying
+     * its dialog.
+     */
+    if button == 3 {
+        match fork() {
+            Ok(ForkResult::Parent { child, .. }) => (),
+            Ok(ForkResult::Child) => show_gtk_dialog(&bat),
+            Err(_) => println!("Fork failed"),
+        }
+    }
+    console_output(&bat);
 }

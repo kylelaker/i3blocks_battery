@@ -12,14 +12,14 @@ pub enum BatteryStatus {
 }
 
 pub struct Battery {
-    name: String,
-    charge_now: u32,
-    charge_full: u32,
-    charge_full_design: u32,
-    cycle_count: u32,
+    pub name: String,
+    pub charge_now: u32,
+    pub charge_full: u32,
+    pub charge_full_design: u32,
+    pub cycle_count: u32,
     pub charge_status: BatteryStatus,
-    current_now: u32,
-    current_avg: u32,
+    pub current_now: u32,
+    pub current_avg: u32,
 }
 
 impl FromStr for BatteryStatus {
@@ -73,7 +73,7 @@ impl Battery {
         let time_left = time_left;
         let hours_left = time_left as u8;
         let mins_left = ((time_left - hours_left as f64) * 60.0) as u8;
-        format!("{:02.0}{}{:02.0}", hours_left, ":", mins_left)
+        format!("{:02.0}:{:02.0}", hours_left, mins_left)
     }
     pub fn percent_remaining(&self) -> u32 {
         (self.charge_now * 100) / self.charge_full
@@ -104,6 +104,7 @@ fn read_from_file<T:FromStr>(path: String) -> T where <T as FromStr>::Err: fmt::
             process::exit(1);
         }
     };
+
     let mut contents = String::new();
     match f.read_to_string(&mut contents) {
         Ok(_) => (),
