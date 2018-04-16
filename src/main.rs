@@ -65,10 +65,18 @@ fn console_output(bat: &Battery) {
     }
 }
 
+/*
+ * Displays the GTK MessageDialog with information about the current status of
+ * the battery. This contains all the fields that this program collects
+ * information on.
+ *
+ * This function should never return. It should always exit the current
+ * process.
+ */
 fn show_gtk_dialog(bat: &Battery) {
     if gtk::init().is_err() {
         println!("Failed to initialize GTK.");
-        return;
+        std::process::exit(1);
     }
 
     let body_string = format!("Battery name:\t\t{}\n\
