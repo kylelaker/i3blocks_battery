@@ -52,7 +52,7 @@ fn console_output(bat: Battery) {
 
     let out = format!("<span color=\"{}\" font_desc=\"Font Awesome\">{} </span>{}%\n",
                       color, icon, percent);
-    println!("{0:}{0:}", out);
+    print!("{0:}{0:}", out);
     if percent <= 5 {
         std::process::exit(33);
     }
@@ -60,7 +60,13 @@ fn console_output(bat: Battery) {
 
 fn main() {
     let battery_name = match env::var("BLOCK_INSTANCE") {
-        Ok(val) => val,
+        Ok(val) => {
+            if val.is_empty() {
+                "BAT0".to_owned()
+            } else {
+                val
+            }
+        },
         Err(_) => "BAT0".to_owned(),
     };
     let bat = Battery::initialize(&battery_name);
