@@ -71,7 +71,7 @@ fn console_output(bat: &Battery) {
  */
 fn show_gtk_dialog(bat: &Battery) -> i32 {
     if gtk::init().is_err() {
-        println!("Failed to initialize GTK.");
+        eprintln!("Failed to initialize GTK.");
         return 1;
     }
 
@@ -116,7 +116,13 @@ fn main() {
         None => "BAT0".to_owned(),
     };
 
-    let bat = Battery::initialize(&battery_name);
+    let bat = match Battery::initialize(&battery_name) {
+        Some(batt) => batt,
+        None => {
+            eprintln!("Unable to load battery data");
+            std::process::exit(1);
+        }
+    };
 
     let button: i32 = match get_env_var("BLOCK_BUTTON") {
         Some(val) => val.trim().parse().unwrap(),
@@ -133,7 +139,7 @@ fn main() {
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => (),
             Ok(ForkResult::Child) => std::process::exit(show_gtk_dialog(&bat)),
-            Err(_) => println!("Fork failed"),
+            Err(_) => eprintln!("Fork failed"),
         }
     }
     console_output(&bat);

@@ -47,18 +47,45 @@ impl fmt::Display for BatteryStatus {
 }
 
 impl Battery {
-    pub fn initialize(name: &str) -> Battery {
-        let it = name;
-        Battery {
+    pub fn initialize(name: &str) -> Option<Battery> {
+        let charge_now = match read_battery_data(name, "charge_now") {
+            Some(data) => data,
+            None => return None,
+        };
+        let charge_full = match read_battery_data(name, "charge_full") {
+            Some(data) => data,
+            None => return None,
+        };
+        let charge_full_design = match read_battery_data(name, "charge_full_design") {
+            Some(data) => data,
+            None => return None,
+        };
+        let cycle_count = match read_battery_data(name, "cycle_count") {
+            Some(data) => data,
+            None => return None,
+        };
+        let current_status = match read_battery_data(name, "status") {
+            Some(data) => data,
+            None => return None,
+        };
+        let current_now = match read_battery_data(name, "current_now") {
+            Some(data) => data,
+            None => return None,
+        };
+        let current_avg = match read_battery_data(name, "current_avg") {
+            Some(data) => data,
+            None => return None,
+        };
+        return Some(Battery {
             name: name.to_owned(),
-            charge_now: read_from_file(get_full_path(it, "charge_now")),
-            charge_full: read_from_file(get_full_path(it, "charge_full")),
-            charge_full_design: read_from_file(get_full_path(it, "charge_full_design")),
-            cycle_count: read_from_file(get_full_path(it, "cycle_count")),
-            charge_status: read_from_file(get_full_path(it, "status")),
-            current_now: read_from_file(get_full_path(it, "current_now")),
-            current_avg: read_from_file(get_full_path(it, "current_avg")),
-        }
+            charge_now: charge_now,
+            charge_full: charge_full,
+            charge_full_design: charge_full_design,
+            cycle_count: cycle_count,
+            charge_status: current_status,
+            current_now: current_now,
+            current_avg: current_avg,
+        });
     }
     pub fn time_remaining(&self) -> String {
         let time_left: f64 = match self.charge_status {
@@ -86,22 +113,23 @@ impl Battery {
     }
 }
 
-fn get_full_path(name: &str, file: &str) -> String {
+fn read_battery_data<T:FromStr>(name: &str, path: &str) -> Option<T> where <T as FromStr>::Err: fmt::Debug {
+   return read_from_file(get_full_path(name, path));
+}
+
+fn get_full_path(name: &str, file: &str) -> PathBuf {
     let path: PathBuf = ["/sys", "class", "power_supply", name, file]
         .iter()
         .collect();
-    return path.as_path()
-        .to_str()
-        .unwrap()
-        .to_owned();
+    return path;
 }
 
-fn read_from_file<T:FromStr>(path: String) -> T where <T as FromStr>::Err: fmt::Debug {
-    let mut f = match File::open(path) {
+fn read_from_file<T:FromStr>(path: PathBuf) -> Option<T> where <T as FromStr>::Err: fmt::Debug {
+    let mut f = match File::open(path.as_path()) {
         Ok(f) => f,
         Err(err) => {
-            println!("Unable to open. Error: {}", err);
-            process::exit(1);
+            eprintln!("Unable to open {:?}. Error: {}", path, err);
+            return None;
         }
     };
 
@@ -109,9 +137,12 @@ fn read_from_file<T:FromStr>(path: String) -> T where <T as FromStr>::Err: fmt::
     match f.read_to_string(&mut contents) {
         Ok(_) => (),
         Err(err) => {
-            println!("Error reading. Error: {}", err);
-            process::exit(1);
+            eprintln!("Error reading. Error: {}", err);
+            return None;
         }
     };
-    return contents.trim().parse().unwrap();
+    return match contents.trim().parse::<T>() {
+        Ok(val) => Some(val),
+        Err(_) => None,
+    }
 }
