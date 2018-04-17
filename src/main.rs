@@ -1,4 +1,5 @@
 extern crate gtk;
+extern crate libnotify;
 extern crate nix;
 mod battery;
 
@@ -12,6 +13,7 @@ use nix::unistd::{fork, ForkResult};
 use battery::Battery;
 use battery::BatteryStatus;
 
+const LEFT_CLICK: i32 = 1;
 const RIGHT_CLICK: i32 = 3;
 const CRITICAL_EXIT_CODE: i32 = 33;
 const CRITICAL_BAT_LEVEL: u32 = 5;
@@ -110,6 +112,43 @@ fn get_env_var(key: &str) -> Option<String> {
     }
 }
 
+fn show_notification(bat: &Battery) {
+    let time_left = bat.time_remaining();
+    libnotify::init("Battery").unwrap();
+    let notification = libnotify::Notification::new("Time Remaining",
+                                                    Some(&*time_left),
+                                                    None);
+    notification.show().unwrap();
+    libnotify::uninit();
+}
+
+/*
+ * For the purposes of i3blocks, 3 corresponds to a right click. When
+ * that happens, fork() and then show a dialog. If we don't fork(), then
+ * the dialog prevents this process from exiting and the block doesn't
+ * update. The printing to the console is done in the parent thread.
+ */
+#[allow(unused_variables)]
+fn handle_button_presses(bat: &Battery) {
+    let button: i32 = match get_env_var("BLOCK_BUTTON") {
+        Some(val) => val.trim().parse().unwrap(),
+        None => 0
+    };
+
+    match button {
+        RIGHT_CLICK => {
+            match fork() {
+                Ok(ForkResult::Parent { child, .. }) => (),
+                Ok(ForkResult::Child) => std::process::exit(show_gtk_dialog(&bat)),
+                Err(_) => eprintln!("Fork failed"),
+            }
+        },
+        LEFT_CLICK => show_notification(&bat),
+        _ => (),
+    };
+    console_output(&bat);
+}
+
 fn main() {
     let battery_name = match get_env_var("BLOCK_INSTANCE") {
         Some(val) => val,
@@ -124,25 +163,7 @@ fn main() {
         }
     };
 
-    let button: i32 = match get_env_var("BLOCK_BUTTON") {
-        Some(val) => val.trim().parse().unwrap(),
-        None => 0
-    };
-
-    /*
-     * For the purposes of i3blocks, 3 corresponds to a right click. When
-     * that happens, fork() and then show a dialog. If we don't fork(), then
-     * the dialog prevents this process from exiting and the block doesn't
-     * update. The printing to the console is done in the parent thread.
-     */
-    if button == RIGHT_CLICK {
-        match fork() {
-            Ok(ForkResult::Parent { child, .. }) => (),
-            Ok(ForkResult::Child) => std::process::exit(show_gtk_dialog(&bat)),
-            Err(_) => eprintln!("Fork failed"),
-        }
-    }
-    console_output(&bat);
+    handle_button_presses(&bat);
 
     /*
      * i3blocks shows a block as critical if the process exits with code 33.
