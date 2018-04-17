@@ -12,6 +12,10 @@ use nix::unistd::{fork, ForkResult};
 use battery::Battery;
 use battery::BatteryStatus;
 
+const RIGHT_CLICK: i32 = 3;
+const CRITICAL_EXIT_CODE: i32 = 33;
+const CRITICAL_BAT_LEVEL: u32 = 5;
+
 fn console_output(bat: &Battery) {
     // Icons
     let plug          = '\u{f1e6}';
@@ -52,17 +56,10 @@ fn console_output(bat: &Battery) {
         _ => (),
     };
 
-    if bat.charge_status == BatteryStatus::FULL {
-        color = green;
-        percent = 100;
-    }
-
     let out = format!("<span color=\"{}\" font_desc=\"Font Awesome\">{} </span>{}%\n",
                       color, icon, percent);
     print!("{0:}{0:}", out);
-    if percent <= 5 {
-        std::process::exit(33);
-    }
+
 }
 
 /*
@@ -107,13 +104,8 @@ fn show_gtk_dialog(bat: &Battery) -> i32 {
 
 fn get_env_var(key: &str) -> Option<String> {
     match env::var(key) {
-        Ok(val) => {
-            if val.is_empty() {
-                None
-            } else {
-                Some(val)
-            }
-        },
+        Ok(ref val) if val.is_empty() => None,
+        Ok(val) => Some(val),
         Err(_) => None
     }
 }
@@ -126,7 +118,7 @@ fn main() {
 
     let bat = Battery::initialize(&battery_name);
 
-    let button: u32 = match get_env_var("BLOCK_BUTTON") {
+    let button: i32 = match get_env_var("BLOCK_BUTTON") {
         Some(val) => val.trim().parse().unwrap(),
         None => 0
     };
@@ -137,7 +129,7 @@ fn main() {
      * the dialog prevents this process from exiting and the block doesn't
      * update. The printing to the console is done in the parent thread.
      */
-    if button == 3 {
+    if button == RIGHT_CLICK {
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => (),
             Ok(ForkResult::Child) => std::process::exit(show_gtk_dialog(&bat)),
@@ -145,4 +137,12 @@ fn main() {
         }
     }
     console_output(&bat);
+
+    /*
+     * i3blocks shows a block as critical if the process exits with code 33.
+     * If the battery is less than 33% charged, the status is critical
+     */
+    if bat.percent_remaining() <= CRITICAL_BAT_LEVEL {
+        std::process::exit(CRITICAL_EXIT_CODE)
+    }
 }
