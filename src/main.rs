@@ -70,13 +70,12 @@ fn console_output(bat: &Battery) {
  * the battery. This contains all the fields that this program collects
  * information on.
  *
- * This function should never return. It should always exit the current
- * process.
+ * This function will return 0 on success and 1 on error.
  */
-fn show_gtk_dialog(bat: &Battery) {
+fn show_gtk_dialog(bat: &Battery) -> i32 {
     if gtk::init().is_err() {
         println!("Failed to initialize GTK.");
-        std::process::exit(1);
+        return 1;
     }
 
     let body_string = format!("Battery name:\t\t{}\n\
@@ -103,7 +102,7 @@ fn show_gtk_dialog(bat: &Battery) {
                        MessageType::Info,
                        ButtonsType::Ok,
                        &body_string).run();
-    std::process::exit(0);
+    return 0;
 }
 
 fn get_env_var(key: &str) -> Option<String> {
@@ -137,13 +136,11 @@ fn main() {
      * that happens, fork() and then show a dialog. If we don't fork(), then
      * the dialog prevents this process from exiting and the block doesn't
      * update. The printing to the console is done in the parent thread.
-     * It is the responsibility of the child process to exit after displaying
-     * its dialog.
      */
     if button == 3 {
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => (),
-            Ok(ForkResult::Child) => show_gtk_dialog(&bat),
+            Ok(ForkResult::Child) => std::process::exit(show_gtk_dialog(&bat)),
             Err(_) => println!("Fork failed"),
         }
     }
