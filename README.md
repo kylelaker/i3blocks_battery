@@ -3,6 +3,8 @@
 Displays an icon for the battery status as well as the current percentage as an
 i3blocks block.
 
+This very likely only works on Apple's Macbook lines.
+
 ## Dependencies
 
  * cargo
