@@ -34,11 +34,13 @@ fn console_output(bat: &Battery) {
     let yellow = "#B58900";
     let orange = "#CB4B16";
     let red    = "#DC322F";
+    let bg     = "#073642";
 
     let mut percent = bat.percent_remaining();
 
     let (mut icon, mut color) = match percent {
-        0  ... 10  => (empty, red),
+        0  ... 5   => (empty, bg),
+        6  ... 10  => (empty, red),
         11 ... 35  => (quarter, orange),
         36 ... 60  => (half, yellow),
         61 ... 85  => (three_quarter, cyan),
@@ -58,7 +60,7 @@ fn console_output(bat: &Battery) {
         _ => (),
     };
 
-    let out = format!("<span color=\"{}\" font_desc=\"Font Awesome\">{} </span>{}%\n",
+    let out = format!("<span color=\"{}\" font_desc=\"Font Awesome\"> {} </span>{}%\n",
                       color, icon, percent);
     print!("{0:}{0:}", out);
 
