@@ -102,7 +102,11 @@ impl Battery {
         format!("{:02.0}:{:02.0}", hours_left, mins_left)
     }
     pub fn percent_remaining(&self) -> u32 {
-        (self.charge_now * 100) / self.charge_full
+        let percent = (self.charge_now * 100) / self.charge_full;
+        if percent > 100 {
+            return 100;
+        }
+        return percent;
     }
     pub fn health(&self) -> u32 {
         (self.charge_full * 100) / self.charge_full_design
