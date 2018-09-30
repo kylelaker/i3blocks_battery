@@ -1,9 +1,10 @@
+use std::fmt;
 use std::io::Read;
 use std::fs::File;
-use std::str::FromStr;
-use std::fmt;
 use std::path::PathBuf;
+use std::str::FromStr;
 
+use error::BatteryError;
 
 #[derive(PartialEq)]
 pub enum BatteryStatus {
@@ -46,36 +47,16 @@ impl fmt::Display for BatteryStatus {
 }
 
 impl Battery {
-    pub fn initialize(name: &str) -> Option<Battery> {
-        let charge_now = match read_battery_data(name, "charge_now") {
-            Some(data) => data,
-            None => return None,
-        };
-        let charge_full = match read_battery_data(name, "charge_full") {
-            Some(data) => data,
-            None => return None,
-        };
-        let charge_full_design = match read_battery_data(name, "charge_full_design") {
-            Some(data) => data,
-            None => return None,
-        };
-        let cycle_count = match read_battery_data(name, "cycle_count") {
-            Some(data) => data,
-            None => return None,
-        };
-        let current_status = match read_battery_data(name, "status") {
-            Some(data) => data,
-            None => return None,
-        };
-        let current_now = match read_battery_data(name, "current_now") {
-            Some(data) => data,
-            None => return None,
-        };
-        let current_avg = match read_battery_data(name, "current_avg") {
-            Some(data) => data,
-            None => return None,
-        };
-        return Some(Battery {
+    pub fn initialize(name: &str) -> Result<Battery, BatteryError> {
+        let charge_now = read_battery_data(name, "charge_now")?;
+        let charge_full = read_battery_data(name, "charge_full")?;
+        let charge_full_design = read_battery_data(name, "charge_full_design")?;
+        let cycle_count = read_battery_data(name, "cycle_count")?;
+        let current_status = read_battery_data(name, "status")?;
+        let current_now = read_battery_data(name, "current_now")?;
+        let current_avg = read_battery_data(name, "current_avg")?;
+
+        return Ok(Battery {
             name: name.to_owned(),
             charge_now: charge_now,
             charge_full: charge_full,
@@ -86,6 +67,7 @@ impl Battery {
             current_avg: current_avg,
         });
     }
+
     pub fn time_remaining(&self) -> String {
         let time_left: f64 = match self.charge_status {
             BatteryStatus::CHARGING => {
@@ -116,7 +98,7 @@ impl Battery {
     }
 }
 
-fn read_battery_data<T:FromStr>(name: &str, path: &str) -> Option<T> where <T as FromStr>::Err: fmt::Debug {
+fn read_battery_data<T:FromStr>(name: &str, path: &str) -> Result<T, BatteryError> {
    return read_from_file(get_full_path(name, path));
 }
 
@@ -127,25 +109,13 @@ fn get_full_path(name: &str, file: &str) -> PathBuf {
     return path;
 }
 
-fn read_from_file<T:FromStr>(path: PathBuf) -> Option<T> where <T as FromStr>::Err: fmt::Debug {
-    let mut f = match File::open(path.as_path()) {
-        Ok(f) => f,
-        Err(err) => {
-            eprintln!("Unable to open {:?}. Error: {}", path, err);
-            return None;
-        }
-    };
-
+fn read_from_file<T:FromStr>(path: PathBuf) -> Result<T, BatteryError> {
+    let mut f = File::open(path.as_path())?;
     let mut contents = String::new();
-    match f.read_to_string(&mut contents) {
-        Ok(_) => (),
-        Err(err) => {
-            eprintln!("Error reading. Error: {}", err);
-            return None;
-        }
+    f.read_to_string(&mut contents)?;
+    let dat = match contents.trim().parse::<T>() {
+        Ok(data) => data,
+        Err(_) => return Err(BatteryError::ConversionError),
     };
-    return match contents.trim().parse::<T>() {
-        Ok(val) => Some(val),
-        Err(_) => None,
-    }
+    return Ok(dat);
 }

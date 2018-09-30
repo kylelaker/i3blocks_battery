@@ -1,7 +1,9 @@
 extern crate gtk;
 extern crate libnotify;
 extern crate nix;
+
 mod battery;
+mod error;
 
 use std::env;
 
@@ -12,6 +14,7 @@ use nix::unistd::{fork, ForkResult};
 
 use battery::Battery;
 use battery::BatteryStatus;
+use error::BatteryError;
 
 const LEFT_CLICK: i32 = 1;
 const RIGHT_CLICK: i32 = 3;
@@ -73,10 +76,9 @@ fn console_output(bat: &Battery) {
  *
  * This function will return 0 on success and 1 on error.
  */
-fn show_gtk_dialog(bat: &Battery) -> i32 {
+fn show_gtk_dialog(bat: &Battery) -> Result<(), &'static str> {
     if gtk::init().is_err() {
-        eprintln!("Failed to initialize GTK.");
-        return 1;
+        return Err("Failed to initialize GTK");
     }
 
     let body_string = format!("Battery name:\t\t{}\n\
@@ -103,7 +105,7 @@ fn show_gtk_dialog(bat: &Battery) -> i32 {
                        MessageType::Info,
                        ButtonsType::Ok,
                        &body_string).run();
-    return 0;
+    return Ok(());
 }
 
 fn get_env_var(key: &str) -> Option<String> {
@@ -130,7 +132,6 @@ fn show_notification(bat: &Battery) {
  * the dialog prevents this process from exiting and the block doesn't
  * update. The printing to the console is done in the parent thread.
  */
-#[allow(unused_variables)]
 fn handle_button_presses(bat: &Battery) {
     let button: i32 = match get_env_var("BLOCK_BUTTON") {
         Some(val) => val.trim().parse().unwrap(),
@@ -140,8 +141,13 @@ fn handle_button_presses(bat: &Battery) {
     match button {
         RIGHT_CLICK => {
             match fork() {
-                Ok(ForkResult::Parent { child, .. }) => (),
-                Ok(ForkResult::Child) => std::process::exit(show_gtk_dialog(&bat)),
+                Ok(ForkResult::Parent{ .. }) => (),
+                Ok(ForkResult::Child) => {
+                    match show_gtk_dialog(&bat) {
+                        Ok(_) => std::process::exit(0),
+                        Err(_) => std::process::exit(1),
+                    }
+                }
                 Err(_) => eprintln!("Fork failed"),
             }
         },
@@ -151,19 +157,13 @@ fn handle_button_presses(bat: &Battery) {
     console_output(&bat);
 }
 
-fn main() {
+fn main() -> Result<(), BatteryError>{
     let battery_name = match get_env_var("BLOCK_INSTANCE") {
         Some(val) => val,
         None => "BAT0".to_owned(),
     };
 
-    let bat = match Battery::initialize(&battery_name) {
-        Some(batt) => batt,
-        None => {
-            eprintln!("Unable to load battery data");
-            std::process::exit(1);
-        }
-    };
+    let bat = Battery::initialize(&battery_name)?;
 
     handle_button_presses(&bat);
 
@@ -172,6 +172,8 @@ fn main() {
      * If the battery is less than 33% charged, the status is critical
      */
     if bat.percent_remaining() <= CRITICAL_BAT_LEVEL {
-        std::process::exit(CRITICAL_EXIT_CODE)
+        std::process::exit(CRITICAL_EXIT_CODE);
     }
+
+    return Ok(());
 }
