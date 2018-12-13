@@ -105,7 +105,7 @@ fn show_gtk_dialog(bat: &Battery) -> Result<(), &'static str> {
                        MessageType::Info,
                        ButtonsType::Ok,
                        &body_string).run();
-    return Ok(());
+    Ok(())
 }
 
 fn get_env_var(key: &str) -> Option<String> {
@@ -143,9 +143,10 @@ fn handle_button_presses(bat: &Battery) {
             match fork() {
                 Ok(ForkResult::Parent{ .. }) => (),
                 Ok(ForkResult::Child) => {
-                    match show_gtk_dialog(&bat) {
-                        Ok(_) => std::process::exit(0),
-                        Err(_) => std::process::exit(1),
+                    if show_gtk_dialog(&bat).is_ok() {
+                        std::process::exit(0);
+                    } else {
+                        std::process::exit(1);
                     }
                 }
                 Err(_) => eprintln!("Fork failed"),
@@ -175,5 +176,5 @@ fn main() -> Result<(), BatteryError>{
         std::process::exit(CRITICAL_EXIT_CODE);
     }
 
-    return Ok(());
+    Ok(())
 }

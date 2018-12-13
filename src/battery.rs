@@ -52,35 +52,35 @@ impl Battery {
         let charge_full = read_battery_data(name, "charge_full")?;
         let charge_full_design = read_battery_data(name, "charge_full_design")?;
         let cycle_count = read_battery_data(name, "cycle_count")?;
-        let current_status = read_battery_data(name, "status")?;
+        let charge_status = read_battery_data(name, "status")?;
         let current_now = read_battery_data(name, "current_now")?;
         let current_avg = read_battery_data(name, "current_avg")?;
 
-        return Ok(Battery {
+        Ok(Battery {
             name: name.to_owned(),
-            charge_now: charge_now,
-            charge_full: charge_full,
-            charge_full_design: charge_full_design,
-            cycle_count: cycle_count,
-            charge_status: current_status,
-            current_now: current_now,
-            current_avg: current_avg,
-        });
+            charge_now,
+            charge_full,
+            charge_full_design,
+            cycle_count,
+            charge_status,
+            current_now,
+            current_avg,
+        })
     }
 
     pub fn time_remaining(&self) -> String {
         let time_left: f64 = match self.charge_status {
             BatteryStatus::CHARGING => {
-                (self.charge_full as f64 - self.charge_now as f64) / self.current_avg as f64
+                (f64::from(self.charge_full) - f64::from(self.charge_now)) / f64::from(self.current_avg)
             },
             BatteryStatus::DISCHARGING => {
-                (self.charge_now as f64 / self.current_avg as f64)
+                f64::from(self.charge_now) / f64::from(self.current_avg)
             },
             _ => 0.0
         };
         let time_left = time_left;
         let hours_left = time_left as u8;
-        let mins_left = ((time_left - hours_left as f64) * 60.0) as u8;
+        let mins_left = ((time_left - f64::from(hours_left)) * 60.0) as u8;
         format!("{:02.0}:{:02.0}", hours_left, mins_left)
     }
     pub fn percent_remaining(&self) -> u32 {
@@ -88,7 +88,7 @@ impl Battery {
         if percent > 100 {
             return 100;
         }
-        return percent;
+        percent
     }
     pub fn health(&self) -> u32 {
         (self.charge_full * 100) / self.charge_full_design
@@ -99,17 +99,14 @@ impl Battery {
 }
 
 fn read_battery_data<T:FromStr>(name: &str, path: &str) -> Result<T, BatteryError> {
-   return read_from_file(get_full_path(name, path));
+   read_from_file(&get_full_path(name, &path))
 }
 
 fn get_full_path(name: &str, file: &str) -> PathBuf {
-    let path: PathBuf = ["/sys", "class", "power_supply", name, file]
-        .iter()
-        .collect();
-    return path;
+    ["/sys", "class", "power_supply", name, file].iter().collect()
 }
 
-fn read_from_file<T:FromStr>(path: PathBuf) -> Result<T, BatteryError> {
+fn read_from_file<T:FromStr>(path: &PathBuf) -> Result<T, BatteryError> {
     let mut f = File::open(path.as_path())?;
     let mut contents = String::new();
     f.read_to_string(&mut contents)?;
@@ -117,5 +114,5 @@ fn read_from_file<T:FromStr>(path: PathBuf) -> Result<T, BatteryError> {
         Ok(data) => data,
         Err(_) => return Err(BatteryError::ConversionError),
     };
-    return Ok(dat);
+    Ok(dat)
 }
