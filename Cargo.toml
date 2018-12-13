@@ -2,6 +2,7 @@
 name = "i3_battery"
 version = "0.1.0"
 authors = ["Kyle Laker <kyle@laker.email>"]
+edition = "2018"
 
 [dependencies]
 nix = "0.10.0"

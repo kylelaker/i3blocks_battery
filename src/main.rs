@@ -12,9 +12,9 @@ use gtk::{ButtonsType, DialogFlags, MessageType, MessageDialog, Window};
 
 use nix::unistd::{fork, ForkResult};
 
-use battery::Battery;
-use battery::BatteryStatus;
-use error::BatteryError;
+use crate::battery::Battery;
+use crate::battery::BatteryStatus;
+use crate::error::BatteryError;
 
 const LEFT_CLICK: i32 = 1;
 const RIGHT_CLICK: i32 = 3;

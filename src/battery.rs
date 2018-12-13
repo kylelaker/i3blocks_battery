@@ -4,7 +4,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use error::BatteryError;
+use crate::error::BatteryError;
 
 #[derive(PartialEq)]
 pub enum BatteryStatus {
