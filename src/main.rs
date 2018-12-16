@@ -8,7 +8,7 @@ mod error;
 use std::env;
 
 use gtk::prelude::*;
-use gtk::{ButtonsType, DialogFlags, MessageType, MessageDialog, Window};
+use gtk::{Align, ButtonsType, DialogFlags, Grid, Label, MessageType, MessageDialog, Window};
 
 use nix::unistd::{fork, ForkResult};
 
@@ -69,42 +69,77 @@ fn console_output(bat: &Battery) {
 
 }
 
-/*
- * Displays the GTK MessageDialog with information about the current status of
- * the battery. This contains all the fields that this program collects
- * information on.
- *
- * This function will return 0 on success and 1 on error.
- */
+/// Creates a left-aligned GTK Label
+fn create_label(content: &str) -> Label {
+    let label = Label::new(Some(content));
+    label.set_halign(Align::Start);
+    return label;
+}
+
+/// Displays the GTK MessageDialog with information about the current status of
+/// the battery. This contains all the fields that this program collects
+/// information on.
+/// This function will return 0 on success and 1 on error.
 fn show_gtk_dialog(bat: &Battery) -> Result<(), &'static str> {
     if gtk::init().is_err() {
         return Err("Failed to initialize GTK");
     }
 
-    let body_string = format!("Battery name:\t\t{}\n\
-                              Battery charge:\t\t{}\n\
-                              Charge when full:\t{}\n\
-                              Design full:\t\t\t{}\n\
-                              Cycle count:\t\t{}\n\
-                              Charging status:\t{}\n\
-                              Current now:\t\t{}\n\
-                              Current avg:\t\t{}\n\
-                              % Charged:\t\t\t{}%\n\
-                              Time remaining:\t\t{}\n\
-                              Battery health:\t\t{}%\n\
-                              % Charged (abs):\t{}%\n",
-                              bat.name, bat.charge_now, bat.charge_full,
-                              bat.charge_full_design, bat.cycle_count,
-                              bat.charge_status, bat.current_now,
-                              bat.current_avg, bat.percent_remaining(),
-                              bat.time_remaining(), bat.health(),
-                              bat.abs_percent_remaining());
+    let grid = Grid::new();
 
-    MessageDialog::new(None::<&Window>,
-                       DialogFlags::empty(),
-                       MessageType::Info,
-                       ButtonsType::Ok,
-                       &body_string).run();
+    let bat_name = format!("{}", bat.name);
+    let bat_charge = format!("{} Ah", bat.charge_now);
+    let charge_full = format!("{} Ah", bat.charge_full);
+    let design_full = format!("{} Ah", bat.charge_full_design);
+    let cycle_count = format!("{} cycles", bat.cycle_count);
+    let charge_status = format!("{}", bat.charge_status);
+    let current_now = format!("{} Ah", bat.current_now);
+    let current_avg = format!("{} Ah", bat.current_avg);
+    let percent = format!("{}%", bat.percent_remaining());
+    let time = format!("{} hrs", bat.time_remaining());
+    let health = format!("{}%", bat.health());
+    let abs_percent = format!("{}%", bat.abs_percent_remaining());
+
+    grid.attach(&create_label("Battery name:"), 0, 0, 1, 1);
+    grid.attach(&create_label(bat_name.as_str()), 1, 0, 1, 1);
+    grid.attach(&create_label("Battery charge:"), 0, 1, 1, 1);
+    grid.attach(&create_label(bat_charge.as_str()), 1, 1, 1, 1);
+    grid.attach(&create_label("Charge when full:"), 0, 2, 1, 1);
+    grid.attach(&create_label(charge_full.as_str()), 1, 2, 1, 1);
+    grid.attach(&create_label("Design full:"), 0, 3, 1, 1);
+    grid.attach(&create_label(design_full.as_str()), 1, 3, 1, 1);
+    grid.attach(&create_label("Cycle count:"), 0, 4, 1, 1);
+    grid.attach(&create_label(cycle_count.as_str()), 1, 4, 1, 1);
+    grid.attach(&create_label("Status:"), 0, 5, 1, 1);
+    grid.attach(&create_label(charge_status.as_str()), 1, 5, 1, 1);
+    grid.attach(&create_label("Current now:"), 0, 6, 1, 1);
+    grid.attach(&create_label(current_now.as_str()), 1, 6, 1, 1);
+    grid.attach(&create_label("Avg current:"), 0, 7, 1, 1);
+    grid.attach(&create_label(current_avg.as_str()), 1, 7, 1, 1);
+    grid.attach(&create_label("% Remaining:"), 0, 8, 1, 1);
+    grid.attach(&create_label(percent.as_str()), 1, 8, 1, 1);
+    grid.attach(&create_label("Time remaining:"), 0, 9, 1, 1);
+    grid.attach(&create_label(time.as_str()), 1, 9, 1, 1);
+    grid.attach(&create_label("Battery health:"), 0, 10, 1, 1);
+    grid.attach(&create_label(health.as_str()), 1, 10, 1, 1);
+    grid.attach(&create_label("Abs % remaining:"), 0, 11, 1, 1);
+    grid.attach(&create_label(abs_percent.as_str()), 1, 11, 1, 1);
+
+    grid.set_row_spacing(6);
+    grid.set_column_spacing(6);
+
+    let dialog = MessageDialog::new(None::<&Window>,
+                                    DialogFlags::MODAL,
+                                    MessageType::Info,
+                                    ButtonsType::Ok,
+                                    "Battery Stats");
+
+    let content = dialog.get_content_area();
+    content.pack_start(&grid, true, true, 6);
+    content.set_border_width(18);
+    dialog.show_all();
+    dialog.run();
+
     Ok(())
 }
 
@@ -126,12 +161,10 @@ fn show_notification(bat: &Battery) {
     libnotify::uninit();
 }
 
-/*
- * For the purposes of i3blocks, 3 corresponds to a right click. When
- * that happens, fork() and then show a dialog. If we don't fork(), then
- * the dialog prevents this process from exiting and the block doesn't
- * update. The printing to the console is done in the parent thread.
- */
+/// For the purposes of i3blocks, 3 corresponds to a right click. When
+/// that happens, fork() and then show a dialog. If we don't fork(), then
+/// the dialog prevents this process from exiting and the block doesn't
+/// update. The printing to the console is done in the parent thread.
 fn handle_button_presses(bat: &Battery) {
     let button: i32 = match get_env_var("BLOCK_BUTTON") {
         Some(val) => val.trim().parse().unwrap(),
